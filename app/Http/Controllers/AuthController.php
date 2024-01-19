@@ -2,56 +2,93 @@
 
 namespace App\Http\Controllers;
 
-
-// AuthController.php
-
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\User;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $validatedData = $request->validate([
-            'name' => 'required',
-            'prenom' => 'required',
-            'email' => 'required|email|unique:users',
+    //Register user
+    public function register (Request $request) {
+        //validate fiels
+        $attrs = $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6|confirmed',
         ]);
 
+        //create user
         $user = User::create([
-            'name' => $validatedData['name'],
-            'prenom' => $validatedData['prenom'],
-            'email' => $validatedData['email'],
-            'password' => bcrypt($validatedData['password']),
+            'name' => $attrs['name'],
+            'email' => $attrs['email'],
+            'password' => bcrypt($attrs['password']),
         ]);
 
-        $token = $user->createToken('authToken')->accessToken;
-
-        return response(['token' => $token], 200);
+        //return user and token inresponse
+        return response([
+            'user' => $user,
+            'token' =>$user ->createToken('secret')->plainTextToken
+        ], 200);
     }
 
+
+   // Login user
     public function login(Request $request)
     {
-        $loginData = $request->validate([
+        // Validate fields
+        $attrs = $request->validate([
             'email' => 'required|email',
-            'password' => 'required',
+            'password' => 'required|min:6',
         ]);
 
-        if (!Auth::attempt($loginData)) {
-            return response(['message' => 'Invalid credentials'], 401);
+        // Attempt login
+        if (!Auth::attempt($attrs)) {
+            return response([
+                'message' => 'Invalid credentials',
+            ], 403);
         }
 
-        $token = auth()->user()->createToken('authToken')->accessToken;
-
-        return response(['token' => $token], 200);
+        // Return user and token in response
+        return response([
+            'user' => auth()->user(),
+            'token' => auth()->user()->createToken('secret')->plainTextToken,
+        ], 200);
     }
-    public function logout(Request $request)
-    {
-        $request->user()->token()->revoke();
 
-        return response(['message' => 'Successfully logged out'], 200);
+    //logout user 
+    public function logout() 
+    {
+        auth()->user()->tokens()->delete();
+        return response([
+            'message'=> 'Logout succes.'
+        ], 200);
+    }
+
+    //get user details
+    public function user()
+    {
+        $user = auth()->user();
+
+        return response()->json($user, 200);
+    }
+
+    //update user
+    public function update(Request $request) 
+    {
+        $attrs = $request->validate([
+            'name' => 'required|string'
+        ]);
+        
+        $image = $this->saveImage($request->image, 'profiles');
+
+        auth()->user()->update([
+            'name' => $attrs['name'],
+            'image' => $image
+        ]);
+
+        return response([
+            'message' => 'User updated',
+            'user' => auth()->user()
+        ], 200);
     }
 }
-
